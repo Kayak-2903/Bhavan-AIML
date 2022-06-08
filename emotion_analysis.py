@@ -2,36 +2,30 @@
 # warnings.filterwarnings('ignore')
 from silence_tensorflow import silence_tensorflow
 silence_tensorflow()
-import joblib
-import pandas as pd
 import numpy as np
-import os
-import matplotlib.pyplot as plt
-import librosa
-import librosa.display
-from keras.models import Sequential, model_from_json
-from keras.layers import Dense, LSTM, Dropout
-from sklearn.preprocessing import OneHotEncoder
-import logging
-logging.getLogger('tensorflow').disabled = True
+# import matplotlib.pyplot as plt
+# import librosa.display
+# import logging
+# logging.getLogger('tensorflow').disabled = True
 
 
-def waveplot(data, sr, emotion):
-    plt.figure(figsize=(10,4))
-    plt.title(emotion, size=20)
-    librosa.display.waveshow(data, sr=sr)
-    plt.show()
+# def waveplot(data, sr, emotion):
+#     plt.figure(figsize=(10,4))
+#     plt.title(emotion, size=20)
+#     librosa.display.waveshow(data, sr=sr)
+#     plt.show()
     
-def spectogram(data, sr, emotion):
-    x = librosa.stft(data)
-    xdb = librosa.amplitude_to_db(abs(x))
-    plt.figure(figsize=(10,4))
-    plt.title(emotion, size=20)
-    librosa.display.specshow(xdb, sr=sr, x_axis='time', y_axis='hz')
-    plt.colorbar()
+# def spectogram(data, sr, emotion):
+#     x = librosa.stft(data)
+#     xdb = librosa.amplitude_to_db(abs(x))
+#     plt.figure(figsize=(10,4))
+#     plt.title(emotion, size=20)
+#     librosa.display.specshow(xdb, sr=sr, x_axis='time', y_axis='hz')
+#     plt.colorbar()
     
 
 def extract_mfcc(filename):
+    import librosa
     y, sr = librosa.load(filename, duration = 3, offset=0.5)
     mfcc = np.mean(librosa.feature.mfcc(y = y, sr = sr, n_mfcc = 40).T, axis = 0)
     return mfcc
@@ -39,12 +33,13 @@ def extract_mfcc(filename):
 def load_dataset():
     paths = []
     labels = []
+    import os
     for dirname, _, filenames in os.walk('archive'):
         for filename in filenames:
             paths.append(os.path.join(dirname, filename))
             labels.append(filename.split('_')[-1].split('.')[0].lower())
     print('Dataset is loaded')
-
+    import pandas as pd
     df = pd.DataFrame()
     df['speech'] = paths
     df['label'] = labels
@@ -60,7 +55,8 @@ def createInputExpectedOutput(df):
     X = [x for x in X_mfcc]
     X = np.array(X)
     X = np.expand_dims(X, -1)
-
+    
+    from sklearn.preprocessing import OneHotEncoder
     enc = OneHotEncoder()
     y = enc.fit_transform(df[['label']])
 
@@ -69,7 +65,8 @@ def createInputExpectedOutput(df):
     return X, y
 
 def train_model(X, y):
-
+    from keras.models import Sequential
+    from keras.layers import Dense, LSTM, Dropout
     model = Sequential([
         LSTM(123, return_sequences=False, input_shape=(40,1)),
         Dense(64, activation='relu'),
@@ -155,9 +152,10 @@ def predict_text_emotion():
                 print("Did you say "+MyText)
                 # SpeakText(MyText)
                 # emotions = te.get_emotion(MyText)
+                import joblib
                 model = joblib.load(open("notebooks/emotion_classifier_pipe_lr_03_june_2021.pkl","rb")) 
                 # print(emotions)
-                MyText = remove_not(MyText)
+                MyText = remove_not(MyText, model)
                 # print(MyText)
                 predicted = model.predict_proba([MyText])
                 emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Shame', 'Surprise']
@@ -187,18 +185,20 @@ def predict_text_emotion():
         except Exception as e:
             print("unknown error occured; {0}".format(e))
 
-def remove_not(text):
+def remove_not(text, model):
+    import re
     dict = {
-        'not angry': 'ok',
-        'not sad': 'ok',
-        'not happy': 'sad',
-        'not ashamed': 'ok',
-        'not surprised': 'ok',
-        'not scared': 'brave',
-        'not disgusted': 'ok'
+        'not [a-z ]* angry': 'ok',
+        'not [a-z ]* sad': 'ok',
+        'not [a-z ]* happy': 'sad',
+        'not [a-z ]* ashamed': 'ok',
+        'not [a-z ]* surprised': 'ok',
+        'not [a-z ]* scared': 'brave',
+        'not [a-z ]* disgusted': 'ok'
     }
+
     for key in dict:
-        text = text.replace(key, dict[key])
+        text = re.sub(key, dict[key], text)
     return text
 
 def predict_combined_emotion(predicted_voice, predicted_text):
@@ -212,30 +212,43 @@ def predict_combined_emotion(predicted_voice, predicted_text):
             dict[emotion] = ratio_voice * predicted_text[emotion]
     return dict
 
+def replace_output_file(file):
+    print("replacing output file")
 
-try:
-    model = model_from_json(open("model.json", 'r').read())
-    model.load_weights("model.h5")
-except:
-    
-    df = load_dataset()
+def emotion_detection(file):
+    replace_output_file(file)
+    try:
+        from keras.models import model_from_json
+        model = model_from_json(open("model.json", 'r').read())
+        model.load_weights("model.h5")
+    except:
+        
+        df = load_dataset()
 
-    X, y = createInputExpectedOutput(df)
+        X, y = createInputExpectedOutput(df)
 
-    model = train_model(X, y)
+        model = train_model(X, y)
 
-    
+        
 
-predicted_voice, predicted_text = predict_voice_emotion(model), predict_text_emotion()
-predict_combined = predict_combined_emotion(predicted_voice, predicted_text)
-print('voice:',predicted_voice)
-print('text:',predicted_text)
-print('combined:',predict_combined)
-max_value = 0
-predicted_emotion = ''
-for emotion in predict_combined:
-    if(max_value < predict_combined[emotion]):
-        predicted_emotion = emotion
-    max_value = max(max_value, predict_combined[emotion])
-print(predicted_emotion)
+    predicted_voice, predicted_text = predict_voice_emotion(model), predict_text_emotion()
+    predict_combined = predict_combined_emotion(predicted_voice, predicted_text)
+    print('voice:',predicted_voice)
+    print('text:',predicted_text)
+    print('combined:',predict_combined)
+    max_value = 0
+    predicted_emotion = ''
+    for emotion in predict_combined:
+        if(max_value < predict_combined[emotion]):
+            predicted_emotion = emotion
+        max_value = max(max_value, predict_combined[emotion])
+    print(predicted_emotion)
+    from flask import jsonify
+    return jsonify(
+        predicted_voice_map = predicted_voice,
+        predicted_text_map = predicted_text,
+        predicted_combined_map = predict_combined,
+        predicted_emotion_value = predicted_emotion
+    )
 
+# print(emotion_detection(open('output.wav', 'rb')))
