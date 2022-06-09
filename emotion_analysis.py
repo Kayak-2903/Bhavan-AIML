@@ -25,6 +25,7 @@ import numpy as np
     
 
 def extract_mfcc(filename):
+    print(filename)
     import librosa
     y, sr = librosa.load(filename, duration = 3, offset=0.5)
     mfcc = np.mean(librosa.feature.mfcc(y = y, sr = sr, n_mfcc = 40).T, axis = 0)
@@ -48,9 +49,37 @@ def load_dataset():
 
     return df
 
-def createInputExpectedOutput(df):
+def retrain(emotion):
+    import pandas as pd
+    df = pd.DataFrame()
+    df['speech'] = ['retrain.wav']
+    df['label'] = [emotion]
     X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
+    X = []
+    X = [X_mfcc]
+    X = np.array(X)
+    X = np.expand_dims(X, -1)
+    
+    
+    from keras.models import load_model
+    new_model = load_model('new_model.h5')
+    # new_model = model_from_json(open("new_model.json", 'r').read())
+    # new_model.load_weights("new_model.h5")    
 
+    # new_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    new_model.summary()
+    from sklearn.preprocessing import OneHotEncoder
+    enc = OneHotEncoder()
+    y = enc.fit_transform(df[['label']])
+
+    y = y.toarray()
+    new_model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
+    new_model.save('new_model.h5')
+
+def createInputExpectedOutput(df):
+    print('in create expectedoutput')
+    X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
+    print('done in create expectedoutput')
     X = []
     X = [x for x in X_mfcc]
     X = np.array(X)
@@ -61,10 +90,12 @@ def createInputExpectedOutput(df):
     y = enc.fit_transform(df[['label']])
 
     y = y.toarray()
+    print('done y encoding')
 
     return X, y
 
 def train_model(X, y):
+    print('in train model')
     from keras.models import Sequential
     from keras.layers import Dense, LSTM, Dropout
     model = Sequential([
@@ -78,11 +109,13 @@ def train_model(X, y):
 
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     model.summary()
+    print('in model fit')
     model.fit(X, y, validation_split=0.2, epochs=100, batch_size=512, shuffle=True)
-    json_file = model.to_json()
-    with open('model.json', 'w') as file:
-        file.write(json_file)
-    model.save_weights('model.h5')
+    # json_file = model.to_json()
+    # with open('model.json', 'w') as file:
+    #     file.write(json_file)
+    # model.save_weights('model.h5')
+    model.save('model.h5')
     return model
 
 
@@ -155,30 +188,31 @@ def predict_text_emotion():
                 import joblib
                 model = joblib.load(open("notebooks/emotion_classifier_pipe_lr_03_june_2021.pkl","rb")) 
                 # print(emotions)
-                MyText = remove_not(MyText, model)
+                new_text = remove_not(MyText, model)
+                print(new_text)
                 # print(MyText)
-                predicted = model.predict_proba([MyText])
+                predicted = model.predict_proba([new_text])
                 emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Shame', 'Surprise']
                 dict_1 = {}
 
                 for i in range(8):
                     dict_1[emotions[i]] = predicted[0][i]
 
-                dict_2 = te.get_emotion(MyText)
+                dict_2 = te.get_emotion(new_text)
 
                 ratio_1 = 1
-                ratio_2 = 1.75
+                ratio_2 = 1
 
                 dict = {}
 
                 for emotion in dict_2:
-                    dict[emotion] = ratio_1 * dict_1[emotion] + ratio_2 * dict_2[emotion]
+                    dict[emotion] = (ratio_1 * dict_1[emotion] + ratio_2 * dict_2[emotion])/2
                 for emotion in dict_1:
                     if emotion not in dict_2:
                         dict[emotion] = ratio_1 * dict_1[emotion]
 
                 
-                return dict_1
+                return dict, MyText
         except sr.RequestError as e:
             print("Could not request results; {0}".format(e))
             
@@ -212,15 +246,13 @@ def predict_combined_emotion(predicted_voice, predicted_text):
             dict[emotion] = ratio_voice * predicted_text[emotion]
     return dict
 
-def replace_output_file(file):
-    print("replacing output file")
-
 def emotion_detection(file):
-    replace_output_file(file)
     try:
-        from keras.models import model_from_json
-        model = model_from_json(open("model.json", 'r').read())
-        model.load_weights("model.h5")
+        # from keras.models import model_from_json
+        # model = model_from_json(open("model.json", 'r').read())
+        # model.load_weights("model.h5")
+        from keras.models import load_model
+        model = load_model('model.h5')
     except:
         
         df = load_dataset()
@@ -231,7 +263,8 @@ def emotion_detection(file):
 
         
 
-    predicted_voice, predicted_text = predict_voice_emotion(model), predict_text_emotion()
+    predicted_voice = predict_voice_emotion(model)
+    predicted_text, text = predict_text_emotion()
     predict_combined = predict_combined_emotion(predicted_voice, predicted_text)
     print('voice:',predicted_voice)
     print('text:',predicted_text)
@@ -248,7 +281,8 @@ def emotion_detection(file):
         predicted_voice_map = predicted_voice,
         predicted_text_map = predicted_text,
         predicted_combined_map = predict_combined,
-        predicted_emotion_value = predicted_emotion
+        predicted_emotion_value = predicted_emotion,
+        predicted_text_value = text
     )
 
 # print(emotion_detection(open('output.wav', 'rb')))

@@ -1,8 +1,10 @@
 from flask import Flask, request
 import traceback
-import firebase
+import firebase_connection
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/emotion-detection', methods=['POST'])
 def emotion_detect():
@@ -16,17 +18,31 @@ def emotion_detect():
 def sign_up():
     user = request.get_json()
     try:
-        return firebase.addUser(user)
+        return firebase_connection.addUser(user)
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
         return "Failed"
 
+@app.route('/retrain', methods=['POST'])
+def retrain():
+    audioFile = request.files['audioFile']
+    email = request.form['email']
+    emotion = request.form['emotion']
+    audioFile.save('retrain.wav')
+    try:
+        return firebase_connection.retrain(email, emotion)
+    except Exception as e:
+        traceback.print_tb(e.__traceback__)
+        print(e)
+        return "Failed"
+
+
 @app.route('/login', methods=['POST'])
 def login():
     login_cred = request.get_json()
     try:
-        return firebase.login(login_cred)
+        return firebase_connection.login(login_cred)
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
@@ -36,7 +52,7 @@ def login():
 def updateUser():
     user = request.get_json()
     try:
-        return firebase.updateUser(user)
+        return firebase_connection.updateUser(user)
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
@@ -46,7 +62,7 @@ def updateUser():
 def deleteUser():
     user = request.get_json()
     try:
-        return firebase.deleteUser(user)
+        return firebase_connection.deleteUser(user)
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
@@ -56,7 +72,7 @@ def deleteUser():
 def getUser():
     user = request.get_json()
     try:
-        return firebase.getUser(user)
+        return firebase_connection.getUser(user)
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
