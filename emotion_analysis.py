@@ -40,6 +40,17 @@ def load_dataset():
             paths.append(os.path.join(dirname, filename))
             labels.append(filename.split('_')[-1].split('.')[0].lower())
     print('Dataset is loaded')
+    
+    from keras.models import Sequential
+    from keras.layers import Dense, SimpleRNN, Dropout
+    model = Sequential([
+        SimpleRNN(123, return_sequences=False, input_shape=(40,1)),
+        Dense(64, activation='relu'),
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dropout(0.2),
+        Dense(7, activation='softmax'),
+    ])
     import pandas as pd
     df = pd.DataFrame()
     df['speech'] = paths
@@ -52,8 +63,14 @@ def load_dataset():
 def retrain(emotion):
     import pandas as pd
     df = pd.DataFrame()
-    df['speech'] = ['retrain.wav']
-    df['label'] = [emotion]
+    paths = []
+    paths.append('retrain.wav')
+    labels = []
+    labels.append(emotion.lower())
+    df['speech'] = paths
+    df['label'] = labels
+    df.head()
+    df['label'].value_counts()
     X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
     X = []
     X = [X_mfcc]
@@ -97,9 +114,9 @@ def createInputExpectedOutput(df):
 def train_model(X, y):
     print('in train model')
     from keras.models import Sequential
-    from keras.layers import Dense, LSTM, Dropout
+    from keras.layers import Dense, SimpleRNN, Dropout
     model = Sequential([
-        LSTM(123, return_sequences=False, input_shape=(40,1)),
+        SimpleRNN(123, return_sequences=False, input_shape=(40,1)),
         Dense(64, activation='relu'),
         Dropout(0.2),
         Dense(32, activation='relu'),
@@ -212,7 +229,7 @@ def predict_text_emotion():
                         dict[emotion] = ratio_1 * dict_1[emotion]
 
                 
-                return dict, MyText
+                return dict_2, MyText
         except sr.RequestError as e:
             print("Could not request results; {0}".format(e))
             
@@ -228,7 +245,17 @@ def remove_not(text, model):
         'not [a-z ]* ashamed': 'ok',
         'not [a-z ]* surprised': 'ok',
         'not [a-z ]* scared': 'brave',
-        'not [a-z ]* disgusted': 'ok'
+        'not [a-z ]* disgusted': 'ok',
+        'stupid[a-z ]*': 'angry',
+        'joy[a-z ]*': 'happy',
+        'annoy[a-z ]*': 'angry',
+        'how dare you': 'angry',
+        'no way': 'angry',
+        'mad': 'angry',
+        'not [a-z ]* accept[a-z ]*':'angry',
+        'oh my god': 'surprise',
+        'not [a-z ]* joy[a-z ]*': 'sad',
+        'not [a-z ]* annoy[a-z ]*': 'ok',
     }
 
     for key in dict:
@@ -236,14 +263,14 @@ def remove_not(text, model):
     return text
 
 def predict_combined_emotion(predicted_voice, predicted_text):
-    ratio_text = 2
+    ratio_text = 1
     ratio_voice = 1
     dict = {}
-    for emotion in predicted_voice:
-        dict[emotion] = ratio_text * predicted_text[emotion] + ratio_voice * predicted_voice[emotion]
     for emotion in predicted_text:
-        if emotion not in predicted_voice:
-            dict[emotion] = ratio_voice * predicted_text[emotion]
+        dict[emotion] = ratio_text * predicted_text[emotion] + ratio_voice * predicted_voice[emotion]
+    for emotion in predicted_voice:
+        if emotion not in predicted_text:
+            dict[emotion] = ratio_voice * predicted_voice[emotion]
     return dict
 
 def emotion_detection(file):
