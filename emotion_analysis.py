@@ -41,16 +41,6 @@ def load_dataset():
             labels.append(filename.split('_')[-1].split('.')[0].lower())
     print('Dataset is loaded')
     
-    # from keras.models import Sequential
-    # from keras.layers import Dense, LSTM, Dropout
-    # model = Sequential([
-    #     LSTM(123, input_shape=(40,1)),
-    #     Dense(64, activation='relu'),
-    #     Dropout(0.2),
-    #     Dense(32, activation='relu'),
-    #     Dropout(0.2),
-    #     Dense(7, activation='softmax'),
-    # ])
     import pandas as pd
     df = pd.DataFrame()
     df['speech'] = paths
@@ -128,10 +118,6 @@ def train_model(X, y):
     model.summary()
     print('in model fit')
     model.fit(X, y, validation_split=0.2, epochs=100, batch_size=512, shuffle=True)
-    # json_file = model.to_json()
-    # with open('model.json', 'w') as file:
-    #     file.write(json_file)
-    # model.save_weights('model.h5')
     model.save('model.h5')
     return model
 
@@ -154,61 +140,23 @@ def predict_voice_emotion(model, file_name):
     return dict
 
 def predict_text_emotion(file_name):
-    # Python program to translate
-    # speech to text and text to speech
-    # import pyAudio
     import speech_recognition as sr
     import text2emotion as te
-    # Initialize the recognizer import numpy as np
-
-    # wa = wavio.read("output.wav")  #Read a .wav file
-    # print("x= "+str(wa.data))   #Data
-    # print("rate= "+str(wa.rate))    #Rate
-    # print("sampwidth= "+str(wa.sampwidth))  #sampwidth
-    # wavio.write("output.wav", wa.data, wa.rate,sampwidth = wa.sampwidth)   #Error is here
-    # Function to convert text to
-    # # speech
-    # def SpeakText(command):
-        
-    # 	# Initialize the engine
-    # 	engine = pyttsx3.init()
-    # 	engine.say(command) 
-    # 	engine.runAndWait()
         
     r = sr.Recognizer()
-    # Loop infinitely for user to
-    # speak
     flag = True
     while(flag): 
         flag = False	
-        # Exception handling to handle
-        # exceptions at the runtime
         try:
             
-            # use the microphone as source for input.
             with sr.AudioFile(open(file_name, 'rb')) as source2:
-                # print("in with")
-                # wait for a second to let the recognizer
-                # adjust the energy threshold based on
-                # the surrounding noise level 
-                # r.adjust_for_ambient_noise(source2, duration=0.2)
-                # print("after removing ambient noise")
-                #listens for the user's input 
                 audio2 = r.record(source2)
-                # audio2 = 
-                # print(audio2)
-                # print("listening")
-                # Using google to recognize audio
                 MyText = r.recognize_google(audio2)
                 print("Did you say "+MyText)
-                # SpeakText(MyText)
-                # emotions = te.get_emotion(MyText)
                 import joblib
                 model = joblib.load(open("notebooks/emotion_classifier_pipe_lr_03_june_2021.pkl","rb")) 
-                # print(emotions)
                 new_text = remove_not(MyText, model)
                 print(new_text)
-                # print(MyText)
                 predicted = model.predict_proba([new_text])
                 emotions = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Shame', 'Surprise']
                 dict_1 = {}
@@ -297,9 +245,6 @@ def predict_combined_emotion(predicted_voice, predicted_text):
 
 def emotion_detection(file_name):
     try:
-        # from keras.models import model_from_json
-        # model = model_from_json(open("model.json", 'r').read())
-        # model.load_weights("model.h5")
         from keras.models import load_model
         model = load_model('model.h5')
     except:
