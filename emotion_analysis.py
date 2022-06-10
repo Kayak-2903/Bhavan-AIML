@@ -27,7 +27,7 @@ import numpy as np
 def extract_mfcc(filename):
     print(filename)
     import librosa
-    y, sr = librosa.load(filename, duration = 3, offset=0.5)
+    y, sr = librosa.load(filename, duration = 7, offset=0.5)
     mfcc = np.mean(librosa.feature.mfcc(y = y, sr = sr, n_mfcc = 40).T, axis = 0)
     return mfcc
 
@@ -41,16 +41,16 @@ def load_dataset():
             labels.append(filename.split('_')[-1].split('.')[0].lower())
     print('Dataset is loaded')
     
-    from keras.models import Sequential
-    from keras.layers import Dense, LSTM, Dropout
-    model = Sequential([
-        LSTM(123, input_shape=(40,1)),
-        Dense(64, activation='relu'),
-        Dropout(0.2),
-        Dense(32, activation='relu'),
-        Dropout(0.2),
-        Dense(7, activation='softmax'),
-    ])
+    # from keras.models import Sequential
+    # from keras.layers import Dense, LSTM, Dropout
+    # model = Sequential([
+    #     LSTM(123, input_shape=(40,1)),
+    #     Dense(64, activation='relu'),
+    #     Dropout(0.2),
+    #     Dense(32, activation='relu'),
+    #     Dropout(0.2),
+    #     Dense(7, activation='softmax'),
+    # ])
     import pandas as pd
     df = pd.DataFrame()
     df['speech'] = paths
@@ -137,6 +137,7 @@ def train_model(X, y):
 
 
 def predict_voice_emotion(model, file_name):
+
     path = np.array([file_name])[0]
     X_mfcc = extract_mfcc(path)
 
@@ -247,7 +248,7 @@ def remove_not(text, model):
         'not [a-z ]* scared': 'brave',
         'not [a-z ]* disgusted': 'ok',
         'stupid[a-z ]*': 'angry',
-        'joy[a-z ]*': 'happy',
+        '[ ]joy[a-z ]*': 'happy',
         'annoy[a-z ]*': 'angry',
         'how dare you': 'angry',
         'no way': 'angry',
@@ -261,6 +262,22 @@ def remove_not(text, model):
         'miserable[a-z ]*':'sad',
         'not [a-z ]* hurt[a-z ]*':'ok',
         'hurt[a-z ]*':'sad',
+        'not [a-z]* nice':'sad',
+        'not [a-z]* good':'bad',
+        'not [a-z]* wonderful':'sad',
+        'not [a-z]* awarded':'bad',
+        'awarded':'happy',
+        'spoil[a-z ]*':'angry',
+        'not [a-z ]* perfect[a-z ]*':'sad',
+        'perfect[a-z ]*':'happy',
+        'no [a-z ]* hope[a-z ]*':'sad',
+        'hopeful[a-z ]*':'happy',
+        'hopeles[a-z ]*':'happy',
+        'not [a-z ]* wish[a-z ]*':'sad',
+        'no [a-z ]* wish[a-z ]*':'sad',
+        'wish[a-z ]*':'happy',
+        'wish you all the best':'happy',
+        'all the best':'happy',
     }
 
     for key in dict:
@@ -351,6 +368,6 @@ def train_example():
     
 # train_example()
     
-# emotion_detection("ji")
+# emotion_detection(r"archive\set\TESS Toronto emotional speech set data\dhaval\dhaval_2_angry.wav")
 
 # print(emotion_detection(open('output.wav', 'rb')))
