@@ -42,9 +42,9 @@ def load_dataset():
     print('Dataset is loaded')
     
     from keras.models import Sequential
-    from keras.layers import Dense, SimpleRNN, Dropout
+    from keras.layers import Dense, LSTM, Dropout
     model = Sequential([
-        SimpleRNN(123, return_sequences=False, input_shape=(40,1)),
+        LSTM(123, input_shape=(40,1)),
         Dense(64, activation='relu'),
         Dropout(0.2),
         Dense(32, activation='relu'),
@@ -136,8 +136,8 @@ def train_model(X, y):
     return model
 
 
-def predict_voice_emotion(model):
-    path = np.array(['output.wav'])[0]
+def predict_voice_emotion(model, file_name):
+    path = np.array([file_name])[0]
     X_mfcc = extract_mfcc(path)
 
     X = [X_mfcc]
@@ -152,7 +152,7 @@ def predict_voice_emotion(model):
         dict[emotions[i]] = predicted_emotion.item(i) / total_sum
     return dict
 
-def predict_text_emotion():
+def predict_text_emotion(file_name):
     # Python program to translate
     # speech to text and text to speech
     # import pyAudio
@@ -185,7 +185,7 @@ def predict_text_emotion():
         try:
             
             # use the microphone as source for input.
-            with sr.AudioFile(open('output.wav', 'rb')) as source2:
+            with sr.AudioFile(open(file_name, 'rb')) as source2:
                 # print("in with")
                 # wait for a second to let the recognizer
                 # adjust the energy threshold based on
@@ -253,9 +253,14 @@ def remove_not(text, model):
         'no way': 'angry',
         'mad': 'angry',
         'not [a-z ]* accept[a-z ]*':'angry',
-        'oh my god': 'surprise',
         'not [a-z ]* joy[a-z ]*': 'sad',
         'not [a-z ]* annoy[a-z ]*': 'ok',
+        'not [a-z ]* excit': 'surprise',
+        'excit[a-z ]*': 'surprise',
+        'not [a-z ]* miserable[a-z ]*':'ok',
+        'miserable[a-z ]*':'sad',
+        'not [a-z ]* hurt[a-z ]*':'ok',
+        'hurt[a-z ]*':'sad',
     }
 
     for key in dict:
@@ -273,7 +278,7 @@ def predict_combined_emotion(predicted_voice, predicted_text):
             dict[emotion] = ratio_voice * predicted_voice[emotion]
     return dict
 
-def emotion_detection(file):
+def emotion_detection(file_name):
     try:
         # from keras.models import model_from_json
         # model = model_from_json(open("model.json", 'r').read())
@@ -290,8 +295,8 @@ def emotion_detection(file):
 
         
 
-    predicted_voice = predict_voice_emotion(model)
-    predicted_text, text = predict_text_emotion()
+    predicted_voice = predict_voice_emotion(model, file_name)
+    predicted_text, text = predict_text_emotion(file_name)
     predict_combined = predict_combined_emotion(predicted_voice, predicted_text)
     print('voice:',predicted_voice)
     print('text:',predicted_text)
@@ -311,5 +316,41 @@ def emotion_detection(file):
         predicted_emotion_value = predicted_emotion,
         predicted_text_value = text
     )
+
+def train_example():
+    import pandas as pd
+    df = pd.DataFrame()
+    paths = []
+    paths.append('output1.wav')
+    labels = []
+    labels.append('happy'.lower())
+    df['speech'] = paths
+    df['label'] = labels
+    df.head()
+    df['label'].value_counts()
+    X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
+    X = []
+    X = [x for x in X_mfcc]
+    X = np.array(X)
+    X = np.expand_dims(X, -1)
+    from sklearn.preprocessing import OneHotEncoder
+    enc = OneHotEncoder()
+    print(df[['label']])
+    y = enc.fit_transform(df[['label']])
+    print(y)
+    # y = np_utils.to_categorical(y, 7)
+    y = y.toarray()
+    from keras.models import load_model
+    model = load_model('model.h5')
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.summary()
+    print('in model fit')
+    model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
+    model.save('model.h5')
+
+    
+# train_example()
+    
+# emotion_detection("ji")
 
 # print(emotion_detection(open('output.wav', 'rb')))

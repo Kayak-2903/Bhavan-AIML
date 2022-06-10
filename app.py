@@ -1,5 +1,6 @@
 from flask import Flask, request
 import traceback
+from emotion_analysis import emotion_detection
 import firebase_connection
 from flask_cors import CORS
 
@@ -12,7 +13,7 @@ def emotion_detect():
     audioFile = request.files['audioFile']
     # audioFile = body['audioFile']
     audioFile.save('output.wav')
-    return emotion_detection(open('output.wav', 'rb'))
+    return emotion_detection('output.wav')
 
 @app.route('/sign-up', methods=['POST'])
 def sign_up():
@@ -37,6 +38,13 @@ def retrain():
         print(e)
         return "Failed"
 
+@app.route('/add-dataset', methods=['POST'])
+def addDataset():
+    audioFile = request.files['audioFile']
+    name = request.form['name'].lower()
+    path = "archive/set/TESS Toronto emotional speech set data/"+name+"/"+audioFile.filename
+    audioFile.save(path)
+    return emotion_detection(path)
 
 @app.route('/login', methods=['POST'])
 def login():
