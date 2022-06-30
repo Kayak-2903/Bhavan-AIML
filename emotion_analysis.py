@@ -36,9 +36,13 @@ def load_dataset():
     labels = []
     import os
     for dirname, _, filenames in os.walk('archive'):
+        # i = 0
         for filename in filenames:
+            # if i == 1:
+            #     break
             paths.append(os.path.join(dirname, filename))
             labels.append(filename.split('_')[-1].split('.')[0].lower())
+            # i += 1
     print('Dataset is loaded')
     
     import pandas as pd
@@ -50,38 +54,75 @@ def load_dataset():
 
     return df
 
-def retrain(emotion):
-    import pandas as pd
-    df = pd.DataFrame()
-    paths = []
-    paths.append('retrain.wav')
-    labels = []
-    labels.append(emotion.lower())
-    df['speech'] = paths
-    df['label'] = labels
-    df.head()
-    df['label'].value_counts()
-    X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
-    X = []
-    X = [X_mfcc]
-    X = np.array(X)
+def retrain(emotion, email):
+#     import pandas as pd
+#     df = pd.DataFrame()
+#     paths = []
+#     paths.append('retrain.wav')
+#     labels = []
+#     labels.append(emotion.lower())
+#     df['speech'] = paths
+#     df['label'] = labels
+#     df.head()
+#     df['label'].value_counts()
+#     X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
+#     X = []
+#     X = [X_mfcc]
+#     X = np.array(X)
+#     X = np.expand_dims(X, -1)
+    import numpy as np
+    new_mfcc = extract_mfcc(email+'_retrain.wav')
+    file = open(email+'_X.csv')
+    X = np.loadtxt(file, delimiter=',', dtype='float')
+    for i in range(5):
+        X = np.vstack([X, new_mfcc])
+    file = open(email+'_y.csv')
+    y = np.loadtxt(file, delimiter=',', dtype='float')
+    emotions=['angry', 'disgust', 'fear', 'happy', 'neutral', 'surprise', 'sad']
+    temp = []
+    for i in range(7):
+        if i == emotions.index(emotion):
+            temp.append(1.000000000000000000e+00)
+        else :
+            temp.append(0.000000000000000000e+00)
+    for j in range(5):
+        y = np.vstack([y, temp])
+    print(y, X)
+    np.savetxt(email+'_X.csv', X, delimiter=',')
+    np.savetxt(email+'_y.csv', y, delimiter=',')
     X = np.expand_dims(X, -1)
-    
-    
-    from keras.models import load_model
-    new_model = load_model('new_model.h5')
-    # new_model = model_from_json(open("new_model.json", 'r').read())
-    # new_model.load_weights("new_model.h5")    
 
-    # new_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-    new_model.summary()
-    from sklearn.preprocessing import OneHotEncoder
-    enc = OneHotEncoder()
-    y = enc.fit_transform(df[['label']])
+    from keras.models import Sequential
+    from keras.layers import Dense, SimpleRNN, Dropout
+    model = Sequential([
+        SimpleRNN(123, return_sequences=False, input_shape=(40,1)),
+        Dense(64, activation='relu'),
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dropout(0.2),
+        Dense(7, activation='softmax'),
+    ])
 
-    y = y.toarray()
-    new_model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
-    new_model.save('new_model.h5')
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.summary()
+    print('in model fit')
+    model.fit(X, y, validation_split=0.2, epochs=100, batch_size=512, shuffle=True)
+    model.save(email+'_retrain.h5')
+    # np.append(y, )
+    # from keras.models import load_model
+    # new_model = load_model('new_model.h5')
+    # # new_model = model_from_json(open("new_model.json", 'r').read())
+    # # new_model.load_weights("new_model.h5")    
+
+    # # new_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    # new_model.summary()
+    # from sklearn.preprocessing import OneHotEncoder
+    # enc = OneHotEncoder()
+    # y = enc.fit_transform(df[['label']])
+
+    # y = y.toarray()
+    # new_model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
+    # new_model.save('new_model.h5')
 
 def createInputExpectedOutput(df):
     print('in create expectedoutput')
@@ -90,13 +131,15 @@ def createInputExpectedOutput(df):
     X = []
     X = [x for x in X_mfcc]
     X = np.array(X)
+    np.savetxt('X.csv', X, delimiter=',')
     X = np.expand_dims(X, -1)
-    
     from sklearn.preprocessing import OneHotEncoder
     enc = OneHotEncoder()
     y = enc.fit_transform(df[['label']])
-
+    # print(y, type(y))
     y = y.toarray()
+    np.savetxt('y.csv', y, delimiter=',')
+    # print(y, type(y))
     print('done y encoding')
 
     return X, y
@@ -144,12 +187,13 @@ def predict_text_emotion(file_name):
     import text2emotion as te
         
     r = sr.Recognizer()
+    
+    file = open(file_name, 'rb')
     flag = True
     while(flag): 
         flag = False	
         try:
-            
-            with sr.AudioFile(open(file_name, 'rb')) as source2:
+            with sr.AudioFile(file) as source2:
                 audio2 = r.record(source2)
                 MyText = r.recognize_google(audio2)
                 print("Did you say "+MyText)
@@ -177,7 +221,8 @@ def predict_text_emotion(file_name):
                     if emotion not in dict_2:
                         dict[emotion] = ratio_1 * dict_1[emotion]
 
-                
+                file.close()
+
                 return dict_2, MyText
         except sr.RequestError as e:
             print("Could not request results; {0}".format(e))
@@ -243,10 +288,10 @@ def predict_combined_emotion(predicted_voice, predicted_text):
             dict[emotion] = ratio_voice * predicted_voice[emotion]
     return dict
 
-def emotion_detection(file_name):
+def emotion_detection(file_name, model_name):
     try:
         from keras.models import load_model
-        model = load_model('model.h5')
+        model = load_model(model_name)
     except:
         
         df = load_dataset()
@@ -279,40 +324,40 @@ def emotion_detection(file_name):
         predicted_text_value = text
     )
 
-def train_example():
-    import pandas as pd
-    df = pd.DataFrame()
-    paths = []
-    paths.append('output1.wav')
-    labels = []
-    labels.append('happy'.lower())
-    df['speech'] = paths
-    df['label'] = labels
-    df.head()
-    df['label'].value_counts()
-    X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
-    X = []
-    X = [x for x in X_mfcc]
-    X = np.array(X)
-    X = np.expand_dims(X, -1)
-    from sklearn.preprocessing import OneHotEncoder
-    enc = OneHotEncoder()
-    print(df[['label']])
-    y = enc.fit_transform(df[['label']])
-    print(y)
-    # y = np_utils.to_categorical(y, 7)
-    y = y.toarray()
-    from keras.models import load_model
-    model = load_model('model.h5')
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-    model.summary()
-    print('in model fit')
-    model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
-    model.save('model.h5')
+# def train_example():
+#     import pandas as pd
+#     df = pd.DataFrame()
+#     paths = []
+#     paths.append('output1.wav')
+#     labels = []
+#     labels.append('happy'.lower())
+#     df['speech'] = paths
+#     df['label'] = labels
+#     df.head()
+#     df['label'].value_counts()
+#     X_mfcc = df['speech'].apply(lambda x: extract_mfcc(x))
+#     X = []
+#     X = [x for x in X_mfcc]
+#     X = np.array(X)
+#     X = np.expand_dims(X, -1)
+#     from sklearn.preprocessing import OneHotEncoder
+#     enc = OneHotEncoder()
+#     print(df[['label']])
+#     y = enc.fit_transform(df[['label']])
+#     print(y)
+#     # y = np_utils.to_categorical(y, 7)
+#     y = y.toarray()
+#     from keras.models import load_model
+#     model = load_model('model.h5')
+#     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+#     model.summary()
+#     print('in model fit')
+#     model.fit(X, y, epochs=100, batch_size=512, shuffle=True)
+#     model.save('model.h5')
 
     
 # train_example()
     
-# emotion_detection(r"archive\set\TESS Toronto emotional speech set data\dhaval\dhaval_2_angry.wav")
+# emotion_detection(r"archive\set\TESS Toronto emotional speech set data\dhaval\dhaval_2_angry.wav", 'none')
 
 # print(emotion_detection(open('output.wav', 'rb')))

@@ -11,9 +11,15 @@ CORS(app)
 def emotion_detect():
     from emotion_analysis import emotion_detection
     audioFile = request.files['audioFile']
+    email = request.form['email']
     # audioFile = body['audioFile']
-    audioFile.save('output.wav')
-    return emotion_detection('output.wav')
+    audioFile.save(email+'_detect.wav')
+    firebase_connection.getModel(email)
+    output = emotion_detection(email+'_detect.wav', email+'.h5')
+    import os
+    os.remove(email+'.h5')
+    os.remove(email+'_detect.wav')
+    return output
 
 @app.route('/sign-up', methods=['POST'])
 def sign_up():
@@ -25,14 +31,24 @@ def sign_up():
         print(e)
         return "Failed"
 
+@app.route('/reset-dataset', methods=['PUT'])
+def reset():
+    email = request.form['email']
+    try:
+        return firebase_connection.resetDataset(email)
+    except Exception as e:
+        traceback.print_tb(e.__traceback__)
+        print(e)
+        return "Failed"
+
 @app.route('/retrain', methods=['POST'])
 def retrain():
     audioFile = request.files['audioFile']
     email = request.form['email']
     emotion = request.form['emotion']
-    audioFile.save('retrain.wav')
+    audioFile.save(email+'_retrain.wav')
     try:
-        return firebase_connection.retrain(email, emotion)
+        return firebase_connection.retrain(email, emotion.lower())
     except Exception as e:
         traceback.print_tb(e.__traceback__)
         print(e)
